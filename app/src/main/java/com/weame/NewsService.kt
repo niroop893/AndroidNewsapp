@@ -5,6 +5,6 @@ import retrofit2.http.GET
 import retrofit2.http.Query
 
 interface NewsService {
-    @GET("top-headlines")
-    fun getTopHeadlines(@Query("country") country: String = "us"): Call<NewsResponse>
+    @GET("https://news.google.com/rss")
+    fun getGoogleNews(): Call<RssResponse>
 }
