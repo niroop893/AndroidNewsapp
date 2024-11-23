@@ -77,8 +77,7 @@ class MainActivity : AppCompatActivity() {
     private fun fetchNews(category: String) {
         GlobalScope.launch(Dispatchers.IO) {
             try {
-                val baseUrl = "https://news.google.com/news/rss/headlines/section/topic/"
-                val url = URL("$baseUrl${category.uppercase()}")
+                val url = URL("https://news.google.com/rss/search?q=${category.uppercase()}&hl=en-IN&gl=IN&ceid=IN:en")
                 val factory = XmlPullParserFactory.newInstance()
                 factory.isNamespaceAware = true
                 val parser = factory.newPullParser()
@@ -95,26 +94,29 @@ class MainActivity : AppCompatActivity() {
                     when (eventType) {
                         XmlPullParser.START_TAG -> {
                             when (parser.name) {
+                                "item" -> {
+                                    title = ""
+                                    link = ""
+                                    description = ""
+                                    imageUrl = ""
+                                }
                                 "title" -> title = parser.nextText()
                                 "link" -> link = parser.nextText()
-                                "description" -> {
-                                    description = parser.nextText()
-                                    // Extract image URL from media:content or description
-                                    imageUrl = extractImageUrl(description)
-                                }
+                                "description" -> description = parser.nextText()
                                 "media:content" -> {
                                     imageUrl = parser.getAttributeValue(null, "url") ?: ""
                                 }
                             }
                         }
                         XmlPullParser.END_TAG -> {
-                            if (parser.name == "item") {
+                            if (parser.name == "item" && title.isNotEmpty()) {
                                 articles.add(Article(
                                     title = title,
                                     description = description,
-                                    url = link,
+                                    url = shortenNewsUrl(link),
                                     urlToImage = imageUrl
                                 ))
+                                android.util.Log.d("NewsParser", "Added article: $title, Image URL: $imageUrl")
                             }
                         }
                     }
@@ -122,19 +124,35 @@ class MainActivity : AppCompatActivity() {
                 }
 
                 launch(Dispatchers.Main) {
+                    android.util.Log.d("NewsParser", "Total articles: ${articles.size}")
                     newsAdapter.updateNews(articles)
                 }
 
             } catch (e: Exception) {
-                e.printStackTrace()
+                android.util.Log.e("NewsParser", "Error fetching news", e)
             }
         }
     }
 
+
+
+    private fun shortenNewsUrl(url: String): String {
+        return url.split("&url=").lastOrNull()?.split("&")?.firstOrNull() ?: url
+    }
+
+
     private fun extractImageUrl(description: String): String {
         val imgPattern = "<img[^>]+src=\"([^\"]+)\"".toRegex()
-        return imgPattern.find(description)?.groupValues?.get(1) ?: ""
+        val matchResult = imgPattern.find(description)?.groupValues?.get(1)
+
+        if (!matchResult.isNullOrEmpty()) {
+            return matchResult.split("?").firstOrNull() ?: ""
+        }
+
+        return "https://via.placeholder.com/150"
     }
+
+
 
 
     override fun onOptionsItemSelected(item: android.view.MenuItem): Boolean {
