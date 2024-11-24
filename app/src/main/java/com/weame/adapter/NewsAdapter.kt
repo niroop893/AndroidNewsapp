@@ -1,67 +1,62 @@
 package com.weame.adapter
 
 import android.content.Intent
+import android.net.Uri
 import android.view.LayoutInflater
+import android.view.View
 import android.view.ViewGroup
+import android.widget.ImageView
+import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
-import com.weame.Article
-import com.weame.NewsDetailActivity
 import com.weame.R
-import com.weame.databinding.ItemNewsBinding
+import com.weame.models.Article
 
 class NewsAdapter : RecyclerView.Adapter<NewsAdapter.NewsViewHolder>() {
-    private var articles = listOf<Article>()
+    private val articles = mutableListOf<Article>() // Backing list for articles
 
-    class NewsViewHolder(private val binding: ItemNewsBinding) : RecyclerView.ViewHolder(binding.root) {
-        fun bind(article: Article) {
-            binding.titleTextView.text = article.title
-
-            // Shorten the URL in description
-            val shortUrl = article.url.let {
-                if (it.length > 30) "${it.take(30)}..." else it
-            }
-            binding.descriptionTextView.text = "$shortUrl\n\n${article.description}"
-
-            // Extract image URL from description HTML
-            val imageUrl = extractImageUrl(article.description)
-
-            // Load and display the image
-            Glide.with(binding.root.context)
-                .load(imageUrl)
-                .placeholder(R.drawable.news_placeholder)
-                .error(R.drawable.news_error)
-                .into(binding.newsImageView)
-        }
-
-        private fun extractImageUrl(description: String): String? {
-            val imgPattern = "<img src=\"(.*?)\"".toRegex()
-            return imgPattern.find(description)?.groupValues?.get(1)
-        }
-    }
-
+    // Update the list of articles
     fun updateNews(newArticles: List<Article>) {
-        articles = newArticles
-        notifyDataSetChanged()
+        articles.clear() // Clear existing articles
+        articles.addAll(newArticles) // Add the new list of articles
+        notifyDataSetChanged() // Notify adapter of data change
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): NewsViewHolder {
-        val binding = ItemNewsBinding.inflate(LayoutInflater.from(parent.context), parent, false)
-        return NewsViewHolder(binding)
+        val view = LayoutInflater.from(parent.context).inflate(R.layout.item_news, parent, false)
+        return NewsViewHolder(view)
     }
 
     override fun onBindViewHolder(holder: NewsViewHolder, position: Int) {
         val article = articles[position]
-        holder.bind(article)
-        holder.itemView.setOnClickListener {
-            val intent = Intent(holder.itemView.context, NewsDetailActivity::class.java).apply {
-                putExtra("url", article.url)
-                putExtra("title", article.title)
-                putExtra("description", article.description)
-            }
-            holder.itemView.context.startActivity(intent)
-        }
+        holder.bind(article) // Bind the article data to the view holder
     }
 
-    override fun getItemCount() = articles.size
+    override fun getItemCount(): Int = articles.size // Return the size of the articles list
+
+    // ViewHolder class to bind views
+    class NewsViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
+        private val titleTextView: TextView = itemView.findViewById(R.id.newsTitle)
+        private val descriptionTextView: TextView = itemView.findViewById(R.id.newsDescription)
+        private val imageView: ImageView = itemView.findViewById(R.id.newsImage)
+
+        // Bind article data to the views
+        fun bind(article: Article) {
+            titleTextView.text = article.title // Set the title
+            descriptionTextView.text = article.description // Set the description
+
+            // Use Glide to load the image
+            Glide.with(itemView.context)
+                .load(article.urlToImage) // Load the image URL into the ImageView
+                .placeholder(R.drawable.placeholder_image) // Placeholder while loading
+                .error(R.drawable.error_image) // Error image if loading fails
+                .into(imageView) // Load the image into the ImageView
+
+            // Set click listener to open article URL in a web browser
+            itemView.setOnClickListener {
+                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(article.url))
+                itemView.context.startActivity(intent)
+            }
+        }
+    }
 }

@@ -18,6 +18,15 @@
             android:background="@color/purple_500"
             android:theme="@style/ThemeOverlay.AppCompat.Dark.ActionBar"/>
 
+        <TextView
+            android:id="@+id/stockMarketUpdatesTextView"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Loading stock market updates..."
+            android:textSize="16sp"
+            android:padding="16dp"
+            android:background="@color/colorAccent"/> <!-- Ensure you have this ID -->
+
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/recyclerView"
             android:layout_width="match_parent"
