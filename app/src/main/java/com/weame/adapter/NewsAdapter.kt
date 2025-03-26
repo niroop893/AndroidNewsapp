@@ -9,17 +9,17 @@ import android.widget.ImageView
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
+import com.weame.Article
+import com.weame.NewsDetailActivity
 import com.weame.R
-import com.weame.models.Article
 
 class NewsAdapter : RecyclerView.Adapter<NewsAdapter.NewsViewHolder>() {
-    private val articles = mutableListOf<Article>() // Backing list for articles
+    private val articles = mutableListOf<Article>()
 
-    // Update the list of articles
     fun updateNews(newArticles: List<Article>) {
-        articles.clear() // Clear existing articles
-        articles.addAll(newArticles) // Add the new list of articles
-        notifyDataSetChanged() // Notify adapter of data change
+        articles.clear()
+        articles.addAll(newArticles)
+        notifyDataSetChanged()
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): NewsViewHolder {
@@ -29,32 +29,29 @@ class NewsAdapter : RecyclerView.Adapter<NewsAdapter.NewsViewHolder>() {
 
     override fun onBindViewHolder(holder: NewsViewHolder, position: Int) {
         val article = articles[position]
-        holder.bind(article) // Bind the article data to the view holder
+        holder.bind(article)
     }
 
-    override fun getItemCount(): Int = articles.size // Return the size of the articles list
+    override fun getItemCount(): Int = articles.size
 
-    // ViewHolder class to bind views
     class NewsViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
         private val titleTextView: TextView = itemView.findViewById(R.id.newsTitle)
         private val descriptionTextView: TextView = itemView.findViewById(R.id.newsDescription)
         private val imageView: ImageView = itemView.findViewById(R.id.newsImage)
 
-        // Bind article data to the views
         fun bind(article: Article) {
-            titleTextView.text = article.title // Set the title
-            descriptionTextView.text = article.description // Set the description
+            titleTextView.text = article.title
+            descriptionTextView.text = article.description
 
-            // Use Glide to load the image
             Glide.with(itemView.context)
-                .load(article.urlToImage) // Load the image URL into the ImageView
-                .placeholder(R.drawable.placeholder_image) // Placeholder while loading
-                .error(R.drawable.error_image) // Error image if loading fails
-                .into(imageView) // Load the image into the ImageView
+                .load(article.urlToImage)
+                .placeholder(R.drawable.placeholder_image)
+                .error(R.drawable.error_image)
+                .into(imageView)
 
-            // Set click listener to open article URL in a web browser
             itemView.setOnClickListener {
-                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(article.url))
+                val intent = Intent(itemView.context, NewsDetailActivity::class.java)
+                intent.putExtra("url", article.url)
                 itemView.context.startActivity(intent)
             }
         }

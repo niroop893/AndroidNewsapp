@@ -5,11 +5,6 @@ data class Article(
     val description: String,
     val url: String,
     val urlToImage: String,
-    val publishedAt: String,
-    val source: String // Ensure this is the correct type
-)
-
-data class Source(
-    val id: String?,
-    val name: String
+    val publishedAt: String,  // Add this field
+    val source: String        // Add this field
 )

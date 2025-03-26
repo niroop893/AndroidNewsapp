@@ -1,28 +1,23 @@
 package com.weame
 
-import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.util.Log
+import android.view.MenuItem
+import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.GravityCompat
-import androidx.drawerlayout.widget.DrawerLayout
+import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
-import androidx.recyclerview.widget.RecyclerView
-import com.google.android.material.navigation.NavigationView
-import com.weame.databinding.ActivityMainBinding
 import com.weame.adapter.NewsAdapter
-import com.weame.models.Article // Use standalone Article class
+import com.weame.databinding.ActivityMainBinding
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import org.xmlpull.v1.XmlPullParser
 import org.xmlpull.v1.XmlPullParserFactory
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.GlobalScope
-import kotlinx.coroutines.launch
 import java.net.URL
+import java.net.URLEncoder
 
 class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
-    private lateinit var drawerLayout: DrawerLayout
-    private lateinit var navView: NavigationView
-    private lateinit var recyclerView: RecyclerView
     private lateinit var newsAdapter: NewsAdapter
     private val defaultCategory = "general"
 
@@ -31,32 +26,29 @@ class MainActivity : AppCompatActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        setupViews()
-        setupNavigationDrawer()
-        setupRecyclerView()
-
-        // Always load general news first
-        fetchNews(defaultCategory)
-
-        // Set the general news item as selected in the navigation drawer
-        navView.setCheckedItem(R.id.nav_general)
-    }
-
-    private fun setupViews() {
-        drawerLayout = binding.drawerLayout
-        navView = binding.navView
-        recyclerView = binding.recyclerView
-
+        // Setup Toolbar
         setSupportActionBar(binding.toolbar)
         supportActionBar?.apply {
             setDisplayHomeAsUpEnabled(true)
             setHomeAsUpIndicator(R.drawable.ic_menu)
             title = getString(R.string.app_name)
         }
+
+        // Setup Drawer and Navigation
+        setupNavigationDrawer()
+
+        // Setup RecyclerView
+        setupRecyclerView()
+
+        // Load general news by default
+        fetchNews(defaultCategory)
+
+        // Set default selected navigation item
+        binding.navView.setCheckedItem(R.id.nav_general)
     }
 
     private fun setupNavigationDrawer() {
-        navView.setNavigationItemSelectedListener { menuItem ->
+        binding.navView.setNavigationItemSelectedListener { menuItem ->
             val category = when (menuItem.itemId) {
                 R.id.nav_general -> "general"
                 R.id.nav_sports -> "sports"
@@ -66,95 +58,79 @@ class MainActivity : AppCompatActivity() {
                 else -> defaultCategory
             }
             fetchNews(category)
-            drawerLayout.closeDrawers()
+            binding.drawerLayout.closeDrawers()
             true
         }
     }
 
     private fun setupRecyclerView() {
-        recyclerView.layoutManager = LinearLayoutManager(this)
         newsAdapter = NewsAdapter()
-        recyclerView.adapter = newsAdapter
-    }
-
-    private fun shortenNewsUrl(url: String): String {
-        return url.split("&url=").lastOrNull()?.split("&")?.firstOrNull() ?: url
+        binding.recyclerView.apply {
+            layoutManager = LinearLayoutManager(this@MainActivity)
+            adapter = newsAdapter
+        }
     }
 
     private fun fetchNews(category: String) {
-        GlobalScope.launch(Dispatchers.IO) {
+        lifecycleScope.launch(Dispatchers.IO) {
             try {
-                val url = URL("https://news.google.com/rss/search?q=${category.uppercase()}&hl=en-IN&gl=IN&ceid=IN:en")
+                val encodedCategory = URLEncoder.encode(category, "UTF-8")
+                val url = "https://news.google.com/rss/search?q=$encodedCategory&hl=en-IN&gl=IN&ceid=IN:en"
+                Log.d("NewsFetch", "Fetching news from: $url")
+
+                val connection = URL(url).openConnection()
                 val factory = XmlPullParserFactory.newInstance()
                 factory.isNamespaceAware = true
                 val parser = factory.newPullParser()
-                parser.setInput(url.openStream(), "UTF-8")
-                var eventType = parser.eventType
-                var title = ""
-                var link = ""
-                var description = ""
-                var imageUrl = ""
-                var publishedAt = "" // Initialize publishedAt
-                var source = "Google News" // Default source name
-                val articles = mutableListOf<com.weame.models.Article>()
+                parser.setInput(connection.getInputStream(), "UTF-8")
 
-                while (eventType != XmlPullParser.END_DOCUMENT) {
-                    when (eventType) {
-                        XmlPullParser.START_TAG -> {
-                            when (parser.name) {
-                                "item" -> {
-                                    title = ""
-                                    link = ""
-                                    description = ""
-                                    imageUrl = ""
-                                    publishedAt = "" // Reset for each item
-                                    source = "Google News" // Reset source for each item, or extract if available
-                                }
-                                "title" -> title = parser.nextText()
-                                "link" -> link = parser.nextText()
-                                "description" -> description = parser.nextText()
-                                "media:content" -> {
-                                    imageUrl = parser.getAttributeValue(null, "url") ?: ""
-                                }
-                                "pubDate" -> publishedAt = parser.nextText() // Extract published date
-                                // If your RSS feed includes a source tag, extract it here
-                                // "source" -> source = parser.nextText() // Uncomment if a source tag exists
-                            }
-                        }
-                        XmlPullParser.END_TAG -> {
-                            if (parser.name == "item" && title.isNotEmpty()) {
-                                articles.add(
-                                    com.weame.models.Article(
-                                        title = title,
-                                        description = description,
-                                        url = shortenNewsUrl(link),
-                                        urlToImage = imageUrl,
-                                        publishedAt = publishedAt, // Pass the published date
-                                        source = source // Pass the source
-                                    )
-                                )
-                                Log.d("NewsParser", "Added article: $title, Image URL: $imageUrl, Published At: $publishedAt, Source: $source")
-                            }
-                        }
-                    }
-                    eventType = parser.next()
-                }
+                val articles = parseRss(parser)
+
                 launch(Dispatchers.Main) {
-                    Log.d("NewsParser", "Total articles: ${articles.size}")
+                    Log.d("NewsFetch", "Total Articles: ${articles.size}")
                     newsAdapter.updateNews(articles)
                 }
             } catch (e: Exception) {
-                Log.e("NewsParser", "Error fetching news", e)
+                Log.e("NewsFetch", "Error fetching news", e)
             }
         }
     }
 
+    private fun parseRss(parser: XmlPullParser): List<Article> {
+        val articles = mutableListOf<Article>()
+        var eventType = parser.eventType
+        var title = ""
+        var link = ""
+        var description = ""
+        var imageUrl = ""
 
+        while (eventType != XmlPullParser.END_DOCUMENT) {
+            when (eventType) {
+                XmlPullParser.START_TAG -> when (parser.name) {
+                    "item" -> {
+                        title = ""
+                        link = ""
+                        description = ""
+                        imageUrl = ""
+                    }
+                    "title" -> title = parser.nextText()
+                    "link" -> link = parser.nextText()
+                    "description" -> description = parser.nextText()
+                    "media:content" -> imageUrl = parser.getAttributeValue(null, "url") ?: ""
+                }
+                XmlPullParser.END_TAG -> if (parser.name == "item" && title.isNotEmpty()) {
+                    articles.add(Article(title, description, link, imageUrl))
+                    Log.d("NewsParser", "Added article: $title, Image URL: $imageUrl")
+                }
+            }
+            eventType = parser.next()
+        }
+        return articles
+    }
 
-
-    override fun onOptionsItemSelected(item: android.view.MenuItem): Boolean {
+    override fun onOptionsItemSelected(item: MenuItem): Boolean {
         if (item.itemId == android.R.id.home) {
-            drawerLayout.openDrawer(GravityCompat.START)
+            binding.drawerLayout.openDrawer(GravityCompat.START)
             return true
         }
         return super.onOptionsItemSelected(item)
